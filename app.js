@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 import AWS from "aws-sdk";
 import inquirer from "inquirer";
+import { promises as fs } from "fs";
 
 dotenv.config();
 
@@ -24,16 +25,16 @@ const main = async () => {
 
     switch (answer.action) {
         case "List all files":
-            listFiles();
+            await listFiles();
             break;
         case "Upload a file":
-            uploadFile();
+            await uploadFile();
             break;
         case "List files by regex":
-            listFilesByRegex();
+            await listFilesByRegex();
             break;
         case "Delete files by regex":
-            deleteFilesByRegex();
+            await deleteFilesByRegex();
             break;
         case "Exit":
             process.exit();
@@ -44,13 +45,18 @@ const listFiles = async () => {
     const params = {
         Bucket: process.env.S3_BUCKET,
     };
-    s3.listObjects(params, (err, data) => {
-        if (err) console.log(err);
-        else {
-            console.log(data?.Contents?.map((file) => file.Key));
-            main();
+    try {
+        const data = await s3.listObjects(params).promise();
+        const list = data?.Contents?.map((file) => file.Key);
+        if (list) {
+            console.log("Files: ", list);
+        } else {
+            console.log("Files not found :(");
         }
-    });
+    } catch (err) {
+        console.error("Error listing files: ", err);
+    }
+    main();
 };
 
 const uploadFile = async () => {
@@ -58,36 +64,34 @@ const uploadFile = async () => {
         {
             type: "input",
             name: "filePath",
-            message: "Enter path to the local file:",
+            message: "Enter path to the local file: ",
         },
         {
             type: "input",
             name: "targetKey",
-            message: "Enter the target file key (including folder path):",
+            message: "Enter the target file key (including folder path): ",
         },
     ]);
-
-    const fileContent = require("fs").readFileSync(answer.filePath);
-    const params = {
-        Bucket: process.env.S3_BUCKET,
-        Key: answer.targetKey,
-        Body: fileContent,
-    };
-
-    s3.upload(params, (err, data) => {
-        if (err) console.log(err);
-        else {
-            console.log("File uploaded successfully.", data.Location);
-            main();
-        }
-    });
+    try {
+        const fileContent = await fs.readFile(answer.filePath);
+        const params = {
+            Bucket: process.env.S3_BUCKET,
+            Key: answer.targetKey,
+            Body: fileContent,
+        };
+        const data = await s3.upload(params).promise();
+        console.log("Uploaded Successfully!", data.Location);
+    } catch (err) {
+        console.error("Error uploading file: ", err);
+    }
+    main();
 };
 
 const listFilesByRegex = async () => {
     const answer = await inquirer.prompt({
         type: "input",
         name: "regex",
-        message: "Enter a regex to filter the files:",
+        message: "Enter a regex to filter the files: ",
     });
 
     const regex = new RegExp(answer.regex);
@@ -95,20 +99,22 @@ const listFilesByRegex = async () => {
         Bucket: process.env.S3_BUCKET,
     };
 
-    s3.listObjects(params, (err, data) => {
-        if (err) console.log(err);
-        else {
-            console.log(data.Contents.filter((file) => regex.test(file.Key)).map((file) => file.Key));
-            main();
-        }
-    });
+    try {
+        const data = await s3.listObjects(params).promise();
+        const list = data.Contents.filter((file) => regex.test(file.Key)).map((file) => file.Key);
+
+        console.log("Listing files by regex: ", list);
+    } catch (err) {
+        console.error("Error listing files by regex: ", err);
+    }
+    main();
 };
 
 const deleteFilesByRegex = async () => {
     const answer = await inquirer.prompt({
         type: "input",
         name: "regex",
-        message: "Enter a regex to delete matching files:",
+        message: "Enter a regex to delete matching files: ",
     });
 
     const regex = new RegExp(answer.regex);
@@ -116,17 +122,18 @@ const deleteFilesByRegex = async () => {
         Bucket: process.env.S3_BUCKET,
     };
 
-    s3.listObjects(params, async (err, data) => {
-        if (err) console.log(err);
-        else {
-            const filesToDelete = data.Contents.filter((file) => regex.test(file.Key));
-            for (let file of filesToDelete) {
-                await s3.deleteObject({ Bucket: process.env.S3_BUCKET, Key: file.Key }).promise();
-                console.log(`Deleted ${file.Key}`);
-            }
-            main();
+    try {
+        const data = await s3.listObjects(params).promise();
+        const filesToDelete = data.Contents.filter((file) => regex.test(file.Key));
+
+        for (let file of filesToDelete) {
+            await s3.deleteObject({ Bucket: process.env.S3_BUCKET, Key: file.Key }).promise();
+            console.log(`Deleted ${file.Key}`);
         }
-    });
+    } catch (err) {
+        console.error("Error deleting files by regex: ", err);
+    }
+    main();
 };
 
 main();
