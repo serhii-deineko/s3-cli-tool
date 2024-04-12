@@ -14,6 +14,7 @@ const s3 = new AWS.S3({
 });
 
 const main = async () => {
+    console.log("\n");
     const answer = await inquirer.prompt({
         type: "list",
         name: "action",
