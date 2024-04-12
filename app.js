@@ -50,7 +50,7 @@ const listFiles = async () => {
         if (list) {
             console.log("Files: ", list);
         } else {
-            console.log("Files not found... \n");
+            throw new Error("Files not found... \n");
         }
     } catch (err) {
         console.error("Error listing files: ", err);
@@ -79,7 +79,12 @@ const uploadFile = async () => {
             Body: fileContent,
         };
         const data = await s3.upload(params).promise();
-        console.log("Uploaded Successfully!", data.Location);
+
+        if (data?.Location) {
+            console.log("Uploaded Successfully!", data.Location);
+        } else {
+            throw new Error("No files to upload... \n");
+        }
     } catch (err) {
         console.error("Error uploading file: ", err);
     }
@@ -100,9 +105,13 @@ const listFilesByRegex = async () => {
 
     try {
         const data = await s3.listObjects(params).promise();
-        const list = data.Contents.filter((file) => regex.test(file.Key)).map((file) => file.Key);
+        const list = data?.Contents?.filter((file) => regex.test(file.Key)).map((file) => file.Key);
 
-        console.log("Listing files by regex: ", list);
+        if (list) {
+            console.log("Listing files by regex: ", list);
+        } else {
+            throw new Error("No files matched... \n");
+        }
     } catch (err) {
         console.error("Error listing files by regex: ", err);
     }
@@ -123,11 +132,15 @@ const deleteFilesByRegex = async () => {
 
     try {
         const data = await s3.listObjects(params).promise();
-        const filesToDelete = data.Contents.filter((file) => regex.test(file.Key));
+        const filesToDelete = data?.Contents?.filter((file) => regex.test(file.Key));
 
-        for (let file of filesToDelete) {
-            await s3.deleteObject({ Bucket: process.env.S3_BUCKET, Key: file.Key }).promise();
-            console.log(`Deleted ${file.Key}`);
+        if (filesToDelete) {
+            for (let file of filesToDelete) {
+                await s3.deleteObject({ Bucket: process.env.S3_BUCKET, Key: file.Key }).promise();
+                console.log(`Deleted ${file.Key}`);
+            }
+        } else {
+            throw new Error("No files matched... \n");
         }
     } catch (err) {
         console.error("Error deleting files by regex: ", err);
