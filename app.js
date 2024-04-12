@@ -9,8 +9,6 @@ AWS.config.update({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
 });
-AWS.config.logger = null;
-
 const s3 = new AWS.S3({
     signatureVersion: "v2",
 });
@@ -22,6 +20,7 @@ const main = async () => {
         message: "What would you like to do?",
         choices: ["List all files", "Upload a file", "List files by regex", "Delete files by regex", "Exit"],
     });
+    console.clear();
 
     switch (answer.action) {
         case "List all files":
@@ -51,7 +50,7 @@ const listFiles = async () => {
         if (list) {
             console.log("Files: ", list);
         } else {
-            console.log("Files not found :(");
+            console.log("Files not found... \n");
         }
     } catch (err) {
         console.error("Error listing files: ", err);
